@@ -1,0 +1,28 @@
+# job-chain-dag - Postgres
+#
+# 说明：这个模块目前是纯 Java + Spring JDBC（不是 Spring Boot 应用）。
+# - 下面的 jobChainDag.db.* 是自定义配置段（给 demo/自写配置加载用）。
+# - 下面的 spring.datasource.* 是 Spring Boot 常用字段（便于未来升级成 Boot 时直接可用）。
+#
+jobChainDag:
+  db:
+    host: localhost
+    port: 5432
+    database: job_chain
+    username: postgres
+    password: postgres
+    # 是否启用 SSL（按需调整）
+    ssl: false
+
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/job_chain
+    username: postgres
+    password: postgres
+    hikari:
+      maximum-pool-size: 5
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false

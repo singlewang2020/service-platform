@@ -1,0 +1,16 @@
+/.classpath
+/.gradle
+/.idea
+*.iml
+/.project
+/.settings
+build/
+logs/
+*.log
+out/
+classes/
+.DS_Store
+.scannerwork/
+/bin/
+.merge*
+gradle.properties
