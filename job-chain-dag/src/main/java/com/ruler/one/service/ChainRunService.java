@@ -54,8 +54,8 @@ public class ChainRunService {
         DagDef dag = readDag(chain.dagJson());
         dag.setJob(chain.name());
 
-        // 写入 run（PENDING）并保存 dag 快照
-        runStorage.createRunIfAbsent(runId, chain.name(), chain.dagJson());
+        // 写入 run（PENDING）并保存 dag 快照（同时写入 chain_id 便于追踪）
+        runStorage.createRunIfAbsent(runId, chain.chainId(), null, chain.name(), chain.dagJson());
 
         // 初始化节点状态为 PENDING
         if (dag.getNodes() != null) {
@@ -73,7 +73,15 @@ public class ChainRunService {
 
     private DagDef readDag(String dagJson) {
         try {
-            return objectMapper.readValue(dagJson, DagDef.class);
+            String s = dagJson;
+            // 防御：如果 dag_json 被“双重编码”为 JSON 字符串（例如 "{...}"），先解一层
+            if (s != null) {
+                String t = s.trim();
+                if (t.startsWith("\"") && t.endsWith("\"")) {
+                    s = objectMapper.readValue(t, String.class);
+                }
+            }
+            return objectMapper.readValue(s, DagDef.class);
         } catch (Exception e) {
             throw new IllegalArgumentException("invalid dag_json", e);
         }

@@ -3,6 +3,7 @@ package com.ruler.one.demo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ruler.one.engine.DagEngine;
 import com.ruler.one.engine.ExecutorRegistry;
+import com.ruler.one.engine.JobBackedExecutor;
 import com.ruler.one.model.DagDef;
 import com.ruler.one.model.NodeDef;
 import com.ruler.one.plugins.NodeExecutor;
@@ -56,7 +57,14 @@ public class DemoRunner {
         NodeExecutor print = new PrintNodeExecutor();
         ExecutorRegistry registry = new ExecutorRegistry(List.of(print));
 
-        DagEngine engine = new DagEngine(storage, runQueryRepository, registry, om);
+        // B 方案：jobId 节点通过 JobBackedExecutor 解析（demo 这里不给 jobRepo，仍可跑 type/cfg 的 DAG）
+        JobBackedExecutor jobBackedExecutor = new JobBackedExecutor(
+                new com.ruler.one.storage.JdbcJobDefinitionRepository(jdbc),
+                registry,
+                om
+        );
+
+        DagEngine engine = new DagEngine(storage, runQueryRepository, registry, om, jobBackedExecutor);
 
         DagDef dag = new DagDef();
         dag.setJob("demo-job");
@@ -118,4 +126,3 @@ public class DemoRunner {
         return (v == null || v.isBlank()) ? def : v;
     }
 }
-

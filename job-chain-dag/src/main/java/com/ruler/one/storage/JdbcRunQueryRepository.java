@@ -19,9 +19,11 @@ public class JdbcRunQueryRepository implements RunQueryRepository {
     @Override
     public Optional<RunRow> findRun(String runId) {
         var list = jdbc.query(
-                "select run_id, job_name, status, dag_json as dag_json, created_at, updated_at from job_run where run_id=?",
+                "select run_id, chain_id, job_id, job_name, status, dag_json as dag_json, created_at, updated_at from job_run where run_id=?",
                 (rs, rowNum) -> new RunRow(
                         rs.getString("run_id"),
+                        rs.getString("chain_id"),
+                        rs.getString("job_id"),
                         rs.getString("job_name"),
                         rs.getString("status"),
                         rs.getString("dag_json"),

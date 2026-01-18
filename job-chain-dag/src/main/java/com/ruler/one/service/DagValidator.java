@@ -12,18 +12,22 @@ import org.springframework.stereotype.Component;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ruler.one.model.DagDef;
 import com.ruler.one.model.NodeDef;
+import com.ruler.one.storage.JobDefinitionRepository;
 
 @Component
 public class DagValidator {
 
     private final ObjectMapper objectMapper;
+    private final JobDefinitionRepository jobRepo;
 
-    public DagValidator(ObjectMapper objectMapper) {
+    public DagValidator(ObjectMapper objectMapper, JobDefinitionRepository jobRepo) {
         this.objectMapper = objectMapper;
+        this.jobRepo = jobRepo;
     }
 
     /**
-     * 校验 dag_json：可反序列化、node.id 非空且唯一、dependsOn 引用存在、无环。
+     * 校验 dag_json：可反序列化、node.id 非空且唯一、
+     * 每个节点必须指定 jobId 或 type、依赖引用存在、无环。
      * 失败时抛 IllegalArgumentException。
      */
     public DagDef validate(String dagJson) {
@@ -40,6 +44,17 @@ public class DagValidator {
             }
             if (nodesById.put(n.getId(), n) != null) {
                 throw new IllegalArgumentException("duplicate node.id: " + n.getId());
+            }
+
+            boolean hasJob = n.getJobId() != null && !n.getJobId().isBlank();
+            boolean hasType = n.getType() != null && !n.getType().isBlank();
+            if (!hasJob && !hasType) {
+                throw new IllegalArgumentException("node " + n.getId() + " must have jobId or type");
+            }
+            if (hasJob) {
+                // validate referenced job exists
+                jobRepo.findById(n.getJobId()).orElseThrow(() ->
+                        new IllegalArgumentException("node " + n.getId() + " references missing jobId " + n.getJobId()));
             }
         }
 
@@ -101,4 +116,3 @@ public class DagValidator {
         }
     }
 }
-

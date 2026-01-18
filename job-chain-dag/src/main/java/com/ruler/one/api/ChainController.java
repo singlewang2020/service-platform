@@ -16,8 +16,10 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.ruler.one.api.dto.ChainDtos;
+import com.ruler.one.api.dto.ChainGraphDtos;
 import com.ruler.one.api.dto.JobDtos;
 import com.ruler.one.model.JobChainDefinition;
+import com.ruler.one.service.ChainQueryService;
 import com.ruler.one.service.ChainRunService;
 import com.ruler.one.service.ChainService;
 
@@ -29,10 +31,12 @@ public class ChainController {
 
     private final ChainService service;
     private final ChainRunService runService;
+    private final ChainQueryService queryService;
 
-    public ChainController(ChainService service, ChainRunService runService) {
+    public ChainController(ChainService service, ChainRunService runService, ChainQueryService queryService) {
         this.service = service;
         this.runService = runService;
+        this.queryService = queryService;
     }
 
     @PostMapping
@@ -73,6 +77,11 @@ public class ChainController {
     @GetMapping("/{chainId}")
     public ChainDtos.ChainDetailResponse detail(@PathVariable String chainId) {
         return toDetail(service.get(chainId));
+    }
+
+    @GetMapping("/{chainId}/graph")
+    public ChainGraphDtos.ChainGraphResponse graph(@PathVariable String chainId) {
+        return queryService.getGraph(chainId);
     }
 
     @PostMapping("/{chainId}:start")

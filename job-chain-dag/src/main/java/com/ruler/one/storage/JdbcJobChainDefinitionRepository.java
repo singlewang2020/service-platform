@@ -22,46 +22,49 @@ public class JdbcJobChainDefinitionRepository implements JobChainDefinitionRepos
         this.jdbc = jdbc;
     }
 
-    private static final RowMapper<JobChainDefinition> MAPPER = new RowMapper<>() {
-        @Override
-        public JobChainDefinition mapRow(ResultSet rs, int rowNum) throws SQLException {
-            return new JobChainDefinition(
-                    rs.getString("chain_id"),
-                    rs.getString("name"),
-                    rs.getString("description"),
-                    rs.getBoolean("enabled"),
-                    rs.getLong("version"),
-                    rs.getString("dag_json"),
-                    rs.getObject("created_at", OffsetDateTime.class),
-                    rs.getObject("updated_at", OffsetDateTime.class)
-            );
-        }
-    };
+    private static final RowMapper<JobChainDefinition> MAPPER = (rs, rowNum) -> new JobChainDefinition(
+            rs.getString("chain_id"),
+            rs.getString("name"),
+            rs.getString("description"),
+            rs.getBoolean("enabled"),
+            rs.getLong("version"),
+            rs.getString("dag_json"),
+            rs.getObject("created_at", OffsetDateTime.class),
+            rs.getObject("updated_at", OffsetDateTime.class)
+    );
 
     @Override
     public JobChainDefinition insert(JobChainDefinition chain) {
-        jdbc.update(
-                "insert into job_chain_definition(chain_id, name, description, enabled, version, dag_json, created_at, updated_at) values (?,?,?,?,?,?::jsonb, now(), now())",
-                chain.chainId(),
-                chain.name(),
-                chain.description(),
-                chain.enabled(),
-                chain.version(),
-                chain.dagJson()
-        );
+        jdbc.update(con -> {
+            var ps = con.prepareStatement(
+                    "insert into job_chain_definition(chain_id, name, description, enabled, version, dag_json, created_at, updated_at) " +
+                            "values (?,?,?,?,?, ?, current_timestamp, current_timestamp)"
+            );
+            ps.setString(1, chain.chainId());
+            ps.setString(2, chain.name());
+            ps.setString(3, chain.description());
+            ps.setBoolean(4, chain.enabled());
+            ps.setLong(5, chain.version());
+            DbJson.setJsonbOrString(ps, 6, chain.dagJson());
+            return ps;
+        });
         return findById(chain.chainId()).orElseThrow();
     }
 
     @Override
     public Optional<JobChainDefinition> updateWithVersion(JobChainDefinition chain, long expectedVersion) {
-        int updated = jdbc.update(
-                "update job_chain_definition set name=?, description=?, dag_json=?::jsonb, version=version+1, updated_at=now() where chain_id=? and version=?",
-                chain.name(),
-                chain.description(),
-                chain.dagJson(),
-                chain.chainId(),
-                expectedVersion
-        );
+        int updated = jdbc.update(con -> {
+            var ps = con.prepareStatement(
+                    "update job_chain_definition set name=?, description=?, dag_json=?, version=version+1, updated_at=current_timestamp " +
+                            "where chain_id=? and version=?"
+            );
+            ps.setString(1, chain.name());
+            ps.setString(2, chain.description());
+            DbJson.setJsonbOrString(ps, 3, chain.dagJson());
+            ps.setString(4, chain.chainId());
+            ps.setLong(5, expectedVersion);
+            return ps;
+        });
         if (updated <= 0) return Optional.empty();
         return findById(chain.chainId());
     }
@@ -69,7 +72,7 @@ public class JdbcJobChainDefinitionRepository implements JobChainDefinitionRepos
     @Override
     public Optional<JobChainDefinition> setEnabled(String chainId, boolean enabled) {
         int updated = jdbc.update(
-                "update job_chain_definition set enabled=?, updated_at=now() where chain_id=?",
+                "update job_chain_definition set enabled=?, updated_at=current_timestamp where chain_id=?",
                 enabled,
                 chainId
         );
@@ -80,7 +83,7 @@ public class JdbcJobChainDefinitionRepository implements JobChainDefinitionRepos
     @Override
     public Optional<JobChainDefinition> findById(String chainId) {
         var list = jdbc.query(
-                "select chain_id, name, description, enabled, version, dag_json::text as dag_json, created_at, updated_at from job_chain_definition where chain_id=?",
+                "select chain_id, name, description, enabled, version, dag_json as dag_json, created_at, updated_at from job_chain_definition where chain_id=?",
                 MAPPER,
                 chainId);
         return list.stream().findFirst();
@@ -89,7 +92,7 @@ public class JdbcJobChainDefinitionRepository implements JobChainDefinitionRepos
     @Override
     public Optional<JobChainDefinition> findByName(String name) {
         var list = jdbc.query(
-                "select chain_id, name, description, enabled, version, dag_json::text as dag_json, created_at, updated_at from job_chain_definition where name=?",
+                "select chain_id, name, description, enabled, version, dag_json as dag_json, created_at, updated_at from job_chain_definition where name=?",
                 MAPPER,
                 name);
         return list.stream().findFirst();
@@ -98,7 +101,7 @@ public class JdbcJobChainDefinitionRepository implements JobChainDefinitionRepos
     @Override
     public List<JobChainDefinition> page(int offset, int limit, String keyword, Boolean enabled) {
         StringBuilder sql = new StringBuilder(
-                "select chain_id, name, description, enabled, version, dag_json::text as dag_json, created_at, updated_at from job_chain_definition where 1=1");
+                "select chain_id, name, description, enabled, version, dag_json as dag_json, created_at, updated_at from job_chain_definition where 1=1");
         List<Object> args = new ArrayList<>();
 
         if (keyword != null && !keyword.isBlank()) {
@@ -131,7 +134,6 @@ public class JdbcJobChainDefinitionRepository implements JobChainDefinitionRepos
             args.add(enabled);
         }
 
-        Long v = jdbc.queryForObject(sql.toString(), Long.class, args.toArray());
-        return v == null ? 0L : v;
+        return jdbc.queryForObject(sql.toString(), Long.class, args.toArray());
     }
 }

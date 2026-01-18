@@ -40,17 +40,34 @@ public class JdbcJobDefinitionRepository implements JobDefinitionRepository {
 
     @Override
     public JobDefinition insert(JobDefinition job) {
-        jdbc.update(
-                "insert into job_definition(job_id, name, description, type, enabled, config_json, created_at, updated_at) values (?,?,?,?,?, ?::jsonb, now(), now())",
-                job.jobId(), job.name(), job.description(), job.type(), job.enabled(), job.configJson());
+        jdbc.update(con -> {
+            var ps = con.prepareStatement(
+                    "insert into job_definition(job_id, name, description, type, enabled, config_json, created_at, updated_at) " +
+                            "values (?,?,?,?,?, ?, current_timestamp, current_timestamp)");
+            ps.setString(1, job.jobId());
+            ps.setString(2, job.name());
+            ps.setString(3, job.description());
+            ps.setString(4, job.type());
+            ps.setBoolean(5, job.enabled());
+            DbJson.setJsonbOrString(ps, 6, job.configJson());
+            return ps;
+        });
         return findById(job.jobId()).orElseThrow();
     }
 
     @Override
     public JobDefinition update(JobDefinition job) {
-        jdbc.update(
-                "update job_definition set name=?, description=?, type=?, enabled=?, config_json=?::jsonb, updated_at=now() where job_id=?",
-                job.name(), job.description(), job.type(), job.enabled(), job.configJson(), job.jobId());
+        jdbc.update(con -> {
+            var ps = con.prepareStatement(
+                    "update job_definition set name=?, description=?, type=?, enabled=?, config_json=?, updated_at=current_timestamp where job_id=?");
+            ps.setString(1, job.name());
+            ps.setString(2, job.description());
+            ps.setString(3, job.type());
+            ps.setBoolean(4, job.enabled());
+            DbJson.setJsonbOrString(ps, 5, job.configJson());
+            ps.setString(6, job.jobId());
+            return ps;
+        });
         return findById(job.jobId()).orElseThrow();
     }
 
@@ -61,7 +78,7 @@ public class JdbcJobDefinitionRepository implements JobDefinitionRepository {
 
     @Override
     public Optional<JobDefinition> findById(String jobId) {
-        var list = jdbc.query("select job_id, name, description, type, enabled, config_json::jsonb as config_json, created_at, updated_at from job_definition where job_id=?",
+        var list = jdbc.query("select job_id, name, description, type, enabled, config_json as config_json, created_at, updated_at from job_definition where job_id=?",
                 MAPPER,
                 jobId);
         return list.stream().findFirst();
@@ -69,7 +86,7 @@ public class JdbcJobDefinitionRepository implements JobDefinitionRepository {
 
     @Override
     public Optional<JobDefinition> findByName(String name) {
-        var list = jdbc.query("select job_id, name, description, type, enabled, config_json::jsonb as config_json, created_at, updated_at from job_definition where name=?",
+        var list = jdbc.query("select job_id, name, description, type, enabled, config_json as config_json, created_at, updated_at from job_definition where name=?",
                 MAPPER,
                 name);
         return list.stream().findFirst();
@@ -78,7 +95,7 @@ public class JdbcJobDefinitionRepository implements JobDefinitionRepository {
     @Override
     public List<JobDefinition> page(int offset, int limit, String keyword, Boolean enabled) {
         StringBuilder sql = new StringBuilder(
-                "select job_id, name, description, type, enabled, config_json::jsonb as config_json, created_at, updated_at from job_definition where 1=1");
+                "select job_id, name, description, type, enabled, config_json as config_json, created_at, updated_at from job_definition where 1=1");
         List<Object> args = new ArrayList<>();
 
         if (keyword != null && !keyword.isBlank()) {
@@ -115,4 +132,3 @@ public class JdbcJobDefinitionRepository implements JobDefinitionRepository {
         return v == null ? 0L : v;
     }
 }
-

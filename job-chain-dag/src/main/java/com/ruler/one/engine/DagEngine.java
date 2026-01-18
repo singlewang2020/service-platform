@@ -25,12 +25,20 @@ public class DagEngine {
     private final RunQueryRepository runQueryRepository;
     private final ExecutorRegistry registry;
     private final ObjectMapper objectMapper;
+    private final JobBackedExecutor jobBackedExecutor;
 
-    public DagEngine(RunStorage storage, RunQueryRepository runQueryRepository, ExecutorRegistry registry, ObjectMapper objectMapper) {
+    public DagEngine(
+            RunStorage storage,
+            RunQueryRepository runQueryRepository,
+            ExecutorRegistry registry,
+            ObjectMapper objectMapper,
+            JobBackedExecutor jobBackedExecutor
+    ) {
         this.storage = storage;
         this.runQueryRepository = runQueryRepository;
         this.registry = registry;
         this.objectMapper = objectMapper;
+        this.jobBackedExecutor = jobBackedExecutor;
     }
 
     public void run(String runId, DagDef dag) {
@@ -99,8 +107,7 @@ public class DagEngine {
             storage.upsertNodeState(runContext.getRunId(), node.getId(), NodeState.RUNNING, attempt, null);
 
             try {
-                NodeExecutor ex = registry.get(node.getType());
-                var result = ex.execute(ctx, node.getCfg());
+                var result = executeOne(ctx, node);
 
                 if (result != null && result.getArtifact() != null && !result.getArtifact().isEmpty()) {
                     ctx.saveArtifact(result.getArtifact());
@@ -128,6 +135,21 @@ public class DagEngine {
 
                 sleepQuietly(rp.backoffForAttempt(attempt));
             }
+        }
+    }
+
+    private com.ruler.one.runtime.NodeResult executeOne(NodeContext ctx, NodeDef node) {
+        // B 方案：优先 jobId
+        if (node.getJobId() != null && !node.getJobId().isBlank()) {
+            return jobBackedExecutor.executeJob(ctx, node.getJobId());
+        }
+
+        // 兼容旧 DAG：直接 type/cfg
+        NodeExecutor ex = registry.get(node.getType());
+        try {
+            return ex.execute(ctx, node.getCfg());
+        } catch (Exception e) {
+            throw new RuntimeException("node execution failed: nodeId=" + node.getId() + ", type=" + node.getType(), e);
         }
     }
 

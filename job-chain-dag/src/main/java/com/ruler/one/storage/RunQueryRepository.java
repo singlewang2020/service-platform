@@ -12,6 +12,8 @@ public interface RunQueryRepository {
 
     record RunRow(
             String runId,
+            String chainId,
+            String jobId,
             String jobName,
             String status,
             String dagJson,
@@ -31,4 +33,3 @@ public interface RunQueryRepository {
             OffsetDateTime updatedAt
     ) {}
 }
-

@@ -5,6 +5,8 @@ public final class RunQueryDtos {
 
     public record RunDetailResponse(
             String runId,
+            String chainId,
+            String jobId,
             String jobName,
             String status,
             String dagJson,
@@ -24,4 +26,3 @@ public final class RunQueryDtos {
             String updatedAt
     ) {}
 }
-

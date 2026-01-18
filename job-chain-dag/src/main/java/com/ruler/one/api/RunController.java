@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.ruler.one.api.dto.RunDtos;
+import com.ruler.one.api.dto.RunGraphDtos;
 import com.ruler.one.api.dto.RunQueryDtos;
 import com.ruler.one.service.RunQueryService;
 import com.ruler.one.service.RunService;
@@ -29,6 +30,11 @@ public class RunController {
     @GetMapping("/runs/{runId}")
     public RunQueryDtos.RunDetailResponse getRun(@PathVariable String runId) {
         return queryService.getRun(runId);
+    }
+
+    @GetMapping("/runs/{runId}/graph")
+    public RunGraphDtos.RunGraphResponse getRunGraph(@PathVariable String runId) {
+        return queryService.getRunGraph(runId);
     }
 
     @GetMapping("/runs/{runId}/nodes")
