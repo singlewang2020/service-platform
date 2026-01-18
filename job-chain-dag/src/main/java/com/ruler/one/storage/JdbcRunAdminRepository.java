@@ -45,18 +45,31 @@ public class JdbcRunAdminRepository implements RunAdminRepository {
 
     @Override
     public NodeRow upsertNode(String runId, String nodeId, String status, int attempt, String lastError, String artifactJson) {
-        String sql = """
-                insert into job_run_node (run_id, node_id, status, attempt, last_error, artifact_json, updated_at)
-                values (?, ?, ?, ?, ?, ?::jsonb, now())
-                on conflict (run_id, node_id) do update set
-                    status = excluded.status,
-                    attempt = excluded.attempt,
-                    last_error = excluded.last_error,
-                    artifact_json = excluded.artifact_json,
-                    updated_at = now()
+        // 1) try update
+        String updateSql = """
+                update job_run_node
+                set status=?,
+                    attempt=?,
+                    last_error=?,
+                    artifact_json=?,
+                    updated_at=now()
+                where run_id=? and node_id=?
                 """;
-        jdbc.update(sql, runId, nodeId, status, attempt, lastError, artifactJson);
+        int updated = jdbc.update(updateSql, status, attempt, lastError, artifactJson, runId, nodeId);
+
+        if (updated <= 0) {
+            // 2) fallback insert
+            String insertSql = """
+                    insert into job_run_node (run_id, node_id, status, attempt, last_error, artifact_json, updated_at)
+                    values (?, ?, ?, ?, ?, ?, now())
+                    """;
+            try {
+                jdbc.update(insertSql, runId, nodeId, status, attempt, lastError, artifactJson);
+            } catch (Exception e) {
+                // concurrent insert, ignore
+            }
+        }
+
         return findNode(runId, nodeId).orElseThrow();
     }
 }
-

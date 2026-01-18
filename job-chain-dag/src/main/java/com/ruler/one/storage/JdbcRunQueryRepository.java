@@ -19,7 +19,7 @@ public class JdbcRunQueryRepository implements RunQueryRepository {
     @Override
     public Optional<RunRow> findRun(String runId) {
         var list = jdbc.query(
-                "select run_id, job_name, status, dag_json::text as dag_json, created_at, updated_at from job_run where run_id=?",
+                "select run_id, job_name, status, dag_json as dag_json, created_at, updated_at from job_run where run_id=?",
                 (rs, rowNum) -> new RunRow(
                         rs.getString("run_id"),
                         rs.getString("job_name"),
@@ -35,7 +35,7 @@ public class JdbcRunQueryRepository implements RunQueryRepository {
     @Override
     public List<NodeRow> listNodes(String runId) {
         return jdbc.query(
-                "select run_id, node_id, status, attempt, last_error, artifact_json::text as artifact_json, started_at, ended_at, updated_at from job_run_node where run_id=? order by node_id",
+                "select run_id, node_id, status, attempt, last_error, artifact_json as artifact_json, started_at, ended_at, updated_at from job_run_node where run_id=? order by node_id",
                 (rs, rowNum) -> new NodeRow(
                         rs.getString("run_id"),
                         rs.getString("node_id"),
@@ -50,4 +50,3 @@ public class JdbcRunQueryRepository implements RunQueryRepository {
                 runId);
     }
 }
-
