@@ -41,7 +41,7 @@ public class JdbcJobChainDefinitionRepository implements JobChainDefinitionRepos
     @Override
     public JobChainDefinition insert(JobChainDefinition chain) {
         jdbc.update(
-                "insert into job_chain_definition(chain_id, name, description, enabled, version, dag_json, created_at, updated_at) values (?,?,?,?,?,?, now(), now())",
+                "insert into job_chain_definition(chain_id, name, description, enabled, version, dag_json, created_at, updated_at) values (?,?,?,?,?,?::jsonb, now(), now())",
                 chain.chainId(),
                 chain.name(),
                 chain.description(),

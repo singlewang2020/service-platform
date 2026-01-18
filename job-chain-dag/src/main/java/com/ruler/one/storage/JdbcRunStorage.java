@@ -26,7 +26,7 @@ public class JdbcRunStorage implements RunStorage {
         // DB-agnostic: try insert, ignore duplicate
         String sql = """
             insert into job_run (run_id, job_name, status, dag_json, created_at, updated_at)
-            values (?, ?, 'PENDING', ?, now(), now())
+            values (?, ?, 'PENDING', ?::jsonb, now(), now())
         """;
         try {
             jdbcTemplate.update(sql, runId, jobName, dagJson);
@@ -118,7 +118,7 @@ public class JdbcRunStorage implements RunStorage {
         // 2) fallback insert
         String insertSql = """
             insert into job_run_checkpoint (run_id, node_id, checkpoint_json, updated_at)
-            values (?, ?, ?, now())
+            values (?, ?, ?::jsonb, now())
         """;
         try {
             jdbcTemplate.update(insertSql, runId, nodeId, json);
@@ -134,7 +134,7 @@ public class JdbcRunStorage implements RunStorage {
         // Update artifact if node exists
         String updateSql = """
             update job_run_node
-            set artifact_json = ?, updated_at = now()
+            set artifact_json = ?::jsonb, updated_at = now()
             where run_id = ? and node_id = ?
         """;
         int updated = jdbcTemplate.update(updateSql, json, runId, nodeId);
@@ -143,7 +143,7 @@ public class JdbcRunStorage implements RunStorage {
         // Insert a placeholder node row if absent
         String insertSql = """
             insert into job_run_node (run_id, node_id, status, attempt, artifact_json, updated_at)
-            values (?, ?, 'RUNNING', 0, ?, now())
+            values (?, ?, 'RUNNING', 0, ?::jsonb, now())
         """;
         try {
             jdbcTemplate.update(insertSql, runId, nodeId, json);

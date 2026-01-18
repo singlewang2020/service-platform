@@ -41,7 +41,7 @@ public class JdbcJobDefinitionRepository implements JobDefinitionRepository {
     @Override
     public JobDefinition insert(JobDefinition job) {
         jdbc.update(
-                "insert into job_definition(job_id, name, description, type, enabled, config_json, created_at, updated_at) values (?,?,?,?,?,?, now(), now())",
+                "insert into job_definition(job_id, name, description, type, enabled, config_json, created_at, updated_at) values (?,?,?,?,?, ?::jsonb, now(), now())",
                 job.jobId(), job.name(), job.description(), job.type(), job.enabled(), job.configJson());
         return findById(job.jobId()).orElseThrow();
     }
@@ -61,7 +61,7 @@ public class JdbcJobDefinitionRepository implements JobDefinitionRepository {
 
     @Override
     public Optional<JobDefinition> findById(String jobId) {
-        var list = jdbc.query("select job_id, name, description, type, enabled, config_json::text as config_json, created_at, updated_at from job_definition where job_id=?",
+        var list = jdbc.query("select job_id, name, description, type, enabled, config_json::jsonb as config_json, created_at, updated_at from job_definition where job_id=?",
                 MAPPER,
                 jobId);
         return list.stream().findFirst();
@@ -69,7 +69,7 @@ public class JdbcJobDefinitionRepository implements JobDefinitionRepository {
 
     @Override
     public Optional<JobDefinition> findByName(String name) {
-        var list = jdbc.query("select job_id, name, description, type, enabled, config_json::text as config_json, created_at, updated_at from job_definition where name=?",
+        var list = jdbc.query("select job_id, name, description, type, enabled, config_json::jsonb as config_json, created_at, updated_at from job_definition where name=?",
                 MAPPER,
                 name);
         return list.stream().findFirst();
@@ -78,7 +78,7 @@ public class JdbcJobDefinitionRepository implements JobDefinitionRepository {
     @Override
     public List<JobDefinition> page(int offset, int limit, String keyword, Boolean enabled) {
         StringBuilder sql = new StringBuilder(
-                "select job_id, name, description, type, enabled, config_json::text as config_json, created_at, updated_at from job_definition where 1=1");
+                "select job_id, name, description, type, enabled, config_json::jsonb as config_json, created_at, updated_at from job_definition where 1=1");
         List<Object> args = new ArrayList<>();
 
         if (keyword != null && !keyword.isBlank()) {

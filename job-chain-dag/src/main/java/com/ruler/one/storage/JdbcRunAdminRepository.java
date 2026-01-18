@@ -29,7 +29,7 @@ public class JdbcRunAdminRepository implements RunAdminRepository {
     @Override
     public Optional<NodeRow> findNode(String runId, String nodeId) {
         var list = jdbc.query(
-                "select run_id, node_id, status, attempt, last_error, artifact_json::text as artifact_json from job_run_node where run_id=? and node_id=?",
+                "select run_id, node_id, status, attempt, last_error, artifact_json::jsonb as artifact_json from job_run_node where run_id=? and node_id=?",
                 (rs, rowNum) -> new NodeRow(
                         rs.getString("run_id"),
                         rs.getString("node_id"),
@@ -51,7 +51,7 @@ public class JdbcRunAdminRepository implements RunAdminRepository {
                 set status=?,
                     attempt=?,
                     last_error=?,
-                    artifact_json=?,
+                    artifact_json=?::jsonb,
                     updated_at=now()
                 where run_id=? and node_id=?
                 """;
@@ -61,7 +61,7 @@ public class JdbcRunAdminRepository implements RunAdminRepository {
             // 2) fallback insert
             String insertSql = """
                     insert into job_run_node (run_id, node_id, status, attempt, last_error, artifact_json, updated_at)
-                    values (?, ?, ?, ?, ?, ?, now())
+                    values (?, ?, ?, ?, ?, ?::jsonb, now())
                     """;
             try {
                 jdbc.update(insertSql, runId, nodeId, status, attempt, lastError, artifactJson);
