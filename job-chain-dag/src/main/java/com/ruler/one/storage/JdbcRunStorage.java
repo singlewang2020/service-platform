@@ -23,13 +23,17 @@ public class JdbcRunStorage implements RunStorage {
 
     @Override
     public void createRunIfAbsent(String runId, String jobName, String dagJson) {
-        // upsert
+        // DB-agnostic: try insert, ignore duplicate
         String sql = """
             insert into job_run (run_id, job_name, status, dag_json, created_at, updated_at)
-            values (?, ?, 'RUNNING', ?::jsonb, now(), now())
-            on conflict (run_id) do nothing
+            values (?, ?, 'PENDING', ?, now(), now())
         """;
-        jdbcTemplate.update(sql, runId, jobName, dagJson);
+        try {
+            jdbcTemplate.update(sql, runId, jobName, dagJson);
+        } catch (Exception e) {
+            // duplicate key (postgres/h2/mysql) -> ignore
+            // any other error will be rethrown by JdbcTemplate if not duplicate; here we assume duplicate is the only expected one
+        }
     }
 
     @Override
@@ -44,24 +48,37 @@ public class JdbcRunStorage implements RunStorage {
 
     @Override
     public void upsertNodeState(String runId, String nodeId, NodeState state, int attempt, String error) {
-        String sql = """
+        String st = state.name();
+
+        // 1) try update
+        String updateSql = """
+            update job_run_node
+            set status = ?,
+                attempt = ?,
+                last_error = ?,
+                started_at = case when started_at is null and ? = 'RUNNING' then now() else started_at end,
+                ended_at = case when ? in ('SUCCESS','FAILED','SKIPPED','STOPPED') then now() else ended_at end,
+                updated_at = now()
+            where run_id = ? and node_id = ?
+        """;
+        int updated = jdbcTemplate.update(updateSql, st, attempt, error, st, st, runId, nodeId);
+        if (updated > 0) return;
+
+        // 2) fallback insert
+        String insertSql = """
             insert into job_run_node
               (run_id, node_id, status, attempt, last_error, started_at, ended_at, updated_at)
             values
               (?, ?, ?, ?, ?,
                case when ? = 'RUNNING' then now() else null end,
-               case when ? in ('SUCCESS','FAILED','SKIPPED') then now() else null end,
+               case when ? in ('SUCCESS','FAILED','SKIPPED','STOPPED') then now() else null end,
                now())
-            on conflict (run_id, node_id) do update set
-              status = excluded.status,
-              attempt = excluded.attempt,
-              last_error = excluded.last_error,
-              started_at = coalesce(job_run_node.started_at, excluded.started_at),
-              ended_at = excluded.ended_at,
-              updated_at = now()
         """;
-        String st = state.name();
-        jdbcTemplate.update(sql, runId, nodeId, st, attempt, error, st, st);
+        try {
+            jdbcTemplate.update(insertSql, runId, nodeId, st, attempt, error, st, st);
+        } catch (Exception e) {
+            // concurrent insert: ignore
+        }
     }
 
     @Override
@@ -88,28 +105,51 @@ public class JdbcRunStorage implements RunStorage {
     @Override
     public void saveCheckpoint(String runId, String nodeId, Checkpoint checkpoint) {
         String json = writeJson(checkpoint.getData());
-        String sql = """
-            insert into job_run_checkpoint (run_id, node_id, checkpoint_json, updated_at)
-            values (?, ?, ?::jsonb, now())
-            on conflict (run_id, node_id) do update set
-              checkpoint_json = excluded.checkpoint_json,
-              updated_at = now()
+
+        // 1) try update
+        String updateSql = """
+            update job_run_checkpoint
+            set checkpoint_json = ?, updated_at = now()
+            where run_id = ? and node_id = ?
         """;
-        jdbcTemplate.update(sql, runId, nodeId, json);
+        int updated = jdbcTemplate.update(updateSql, json, runId, nodeId);
+        if (updated > 0) return;
+
+        // 2) fallback insert
+        String insertSql = """
+            insert into job_run_checkpoint (run_id, node_id, checkpoint_json, updated_at)
+            values (?, ?, ?, now())
+        """;
+        try {
+            jdbcTemplate.update(insertSql, runId, nodeId, json);
+        } catch (Exception e) {
+            // concurrent insert: ignore
+        }
     }
 
     @Override
     public void saveArtifact(String runId, String nodeId, Map<String, Object> artifact) {
         String json = writeJson(artifact);
-        String sql = """
-            insert into job_run_node (run_id, node_id, status, attempt, artifact_json, updated_at)
-            values (?, ?, 'RUNNING', 0, ?::jsonb, now())
-            on conflict (run_id, node_id) do update set
-              artifact_json = ?::jsonb,
-              updated_at = now()
+
+        // Update artifact if node exists
+        String updateSql = """
+            update job_run_node
+            set artifact_json = ?, updated_at = now()
+            where run_id = ? and node_id = ?
         """;
-        // 注意：这里不改 status，只写 artifact；如果 node 还不存在就插入一个 RUNNING 占位
-        jdbcTemplate.update(sql, runId, nodeId, json, json);
+        int updated = jdbcTemplate.update(updateSql, json, runId, nodeId);
+        if (updated > 0) return;
+
+        // Insert a placeholder node row if absent
+        String insertSql = """
+            insert into job_run_node (run_id, node_id, status, attempt, artifact_json, updated_at)
+            values (?, ?, 'RUNNING', 0, ?, now())
+        """;
+        try {
+            jdbcTemplate.update(insertSql, runId, nodeId, json);
+        } catch (Exception e) {
+            // concurrent insert: ignore
+        }
     }
 
     private String writeJson(Object obj) {

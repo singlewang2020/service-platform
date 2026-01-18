@@ -10,20 +10,25 @@ import com.ruler.one.model.RetryPolicy;
 import com.ruler.one.plugins.NodeExecutor;
 import com.ruler.one.runtime.NodeContext;
 import com.ruler.one.runtime.RunContext;
+import com.ruler.one.storage.RunQueryRepository;
 import com.ruler.one.storage.RunStorage;
+
+import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-//@Service
+@Component
 public class DagEngine {
 
     private final RunStorage storage;
+    private final RunQueryRepository runQueryRepository;
     private final ExecutorRegistry registry;
     private final ObjectMapper objectMapper;
 
-    public DagEngine(RunStorage storage, ExecutorRegistry registry, ObjectMapper objectMapper) {
+    public DagEngine(RunStorage storage, RunQueryRepository runQueryRepository, ExecutorRegistry registry, ObjectMapper objectMapper) {
         this.storage = storage;
+        this.runQueryRepository = runQueryRepository;
         this.registry = registry;
         this.objectMapper = objectMapper;
     }
@@ -43,8 +48,17 @@ public class DagEngine {
         for (NodeDef n : ordered) done.put(n.getId(), NodeState.PENDING);
 
         try {
+            // run 开始执行
+            storage.updateRunStatus(runId, "RUNNING");
+
             for (NodeDef node : ordered) {
-                // 依赖未成功则跳过/或失败（这里选择失败更严格）
+                if (isStopped(runId)) {
+                    storage.updateRunStatus(runId, "STOPPED");
+                    storage.upsertNodeState(runId, node.getId(), NodeState.STOPPED, 0, "Run stopped");
+                    return;
+                }
+
+                // 依赖未成功则跳过/或失败（这里选择跳过）
                 if (!depsAllSuccess(node, done)) {
                     storage.upsertNodeState(runId, node.getId(), NodeState.SKIPPED, 0, "Dependency not SUCCESS");
                     done.put(node.getId(), NodeState.SKIPPED);
@@ -61,7 +75,6 @@ public class DagEngine {
             storage.updateRunStatus(runId, "SUCCESS");
         } catch (Exception e) {
             storage.updateRunStatus(runId, "FAILED");
-            // 这里可再记录 run 级 error 字段（你现在表里没这个字段）
             throw new RuntimeException("DAG run failed: " + runId, e);
         }
     }
@@ -71,6 +84,12 @@ public class DagEngine {
         int max = Math.max(1, rp.getMaxAttempts());
 
         for (int attempt = 1; attempt <= max; attempt++) {
+            if (isStopped(runContext.getRunId())) {
+                storage.upsertNodeState(runContext.getRunId(), node.getId(), NodeState.STOPPED, attempt, "Run stopped");
+                done.put(node.getId(), NodeState.STOPPED);
+                return;
+            }
+
             NodeContext ctx = new NodeContext();
             ctx.setRunContext(runContext);
             ctx.setStorage(storage);
@@ -110,6 +129,16 @@ public class DagEngine {
                 sleepQuietly(rp.backoffForAttempt(attempt));
             }
         }
+    }
+
+    private boolean isStopped(String runId) {
+        // STOPPING/STOPPED 视为需要停止
+        return runQueryRepository.findRun(runId)
+                .map(r -> {
+                    String st = r.status();
+                    return "STOPPING".equals(st) || "STOPPED".equals(st);
+                })
+                .orElse(false);
     }
 
     private boolean depsAllSuccess(NodeDef node, Map<String, NodeState> done) {

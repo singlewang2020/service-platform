@@ -7,7 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-//@Component
+@Component
 public class ExecutorRegistry {
     private final Map<String, NodeExecutor> byType = new HashMap<>();
 

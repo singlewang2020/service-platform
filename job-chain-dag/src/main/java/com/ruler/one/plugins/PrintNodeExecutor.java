@@ -2,8 +2,11 @@ package com.ruler.one.plugins;
 
 import com.ruler.one.runtime.NodeContext;
 import com.ruler.one.runtime.NodeResult;
+import org.springframework.stereotype.Component;
+
 import java.util.Map;
 
+@Component
 public class PrintNodeExecutor implements NodeExecutor {
     @Override
     public String type() {
@@ -18,4 +21,3 @@ public class PrintNodeExecutor implements NodeExecutor {
         return result;
     }
 }
-

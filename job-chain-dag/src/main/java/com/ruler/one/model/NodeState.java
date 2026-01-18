@@ -6,5 +6,6 @@ public enum NodeState {
     SUCCESS,
     FAILED,
     RETRYING,
-    SKIPPED
+    SKIPPED,
+    STOPPED
 }

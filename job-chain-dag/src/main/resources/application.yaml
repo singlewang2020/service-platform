@@ -20,9 +20,27 @@ spring:
     url: jdbc:postgresql://localhost:5432/job_chain
     username: postgres
     password: postgres
-    hikari:
-      maximum-pool-size: 5
+
+  sql:
+    init:
+      mode: always
+      encoding: UTF-8
 
   jackson:
     serialization:
       write-dates-as-timestamps: false
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html

@@ -5,8 +5,11 @@ import com.ruler.one.engine.DagEngine;
 import com.ruler.one.engine.ExecutorRegistry;
 import com.ruler.one.model.DagDef;
 import com.ruler.one.model.NodeDef;
+import com.ruler.one.plugins.NodeExecutor;
 import com.ruler.one.plugins.PrintNodeExecutor;
+import com.ruler.one.storage.JdbcRunQueryRepository;
 import com.ruler.one.storage.JdbcRunStorage;
+import com.ruler.one.storage.RunQueryRepository;
 import com.ruler.one.storage.RunStorage;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -47,8 +50,13 @@ public class DemoRunner {
         applyDdl(jdbc);
 
         RunStorage storage = new JdbcRunStorage(jdbc, om);
-        ExecutorRegistry registry = new ExecutorRegistry(List.of(new PrintNodeExecutor()));
-        DagEngine engine = new DagEngine(storage, registry, om);
+        RunQueryRepository runQueryRepository = new JdbcRunQueryRepository(jdbc);
+
+        // demo 环境不走 Spring 注入，这里手动装配一个 registry
+        NodeExecutor print = new PrintNodeExecutor();
+        ExecutorRegistry registry = new ExecutorRegistry(List.of(print));
+
+        DagEngine engine = new DagEngine(storage, runQueryRepository, registry, om);
 
         DagDef dag = new DagDef();
         dag.setJob("demo-job");
